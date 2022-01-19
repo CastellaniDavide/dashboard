@@ -1,4 +1,8 @@
 # requirements
 
-wmi
-slack_sdk
+wmi >= 1.5.1
+pyYAML
+win32com
+pywin32
+pypiwin32
+# slack_sdk
