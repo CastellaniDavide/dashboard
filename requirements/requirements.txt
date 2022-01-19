@@ -1,0 +1,4 @@
+# requirements
+
+wmi
+slack_sdk

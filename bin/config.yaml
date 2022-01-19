@@ -1,16 +1,11 @@
 ---
  output-osversion: "..\\flussi\\osversion.csv"
  output-netinfo: "..\\flussi\\netinfo.csv"
- output-usb: "..\\flussi\\usb.csv"
- output-eventviewer: "..\\flussi\\eventviewer.csv"
  output-product: "..\\flussi\\product.csv"
  output-uptime: "..\\flussi\\uptime.csv"
- output-updatepending: "..\\flussi\\updatepending.csv"
  output-logicaldisk: "..\\flussi\\logicaldisk.csv"
- mac-separator: ;
- eventviewer-yes-or-no: "no"
- sync-path: sync_path
  db-host: "192.168.1.202"
  db-username: "admin"
  db-password: "admin"
  db-dbname: "ciaotest"
+ token: 'Basic Z2lhbm5pYmVsbGluaTpIYXJwZXJEQiQkNjM='

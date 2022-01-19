@@ -1,17 +1,13 @@
-__author__ = 'Ciancetta Thomas, Francesco Maria Giacomi'
-__version__ = '01.02 2020-12-14'
+__author__ = 'Ciancetta Thomas'
+__version__ = '01.01 2022-01-01'
 
-import codecs
 import datetime
-import json
 import mysql.connector
 import os
 import sys
 import time
 import wmi
 import yaml
-
-import urllib.request as urllib2
 
 
 def main():
@@ -30,7 +26,7 @@ def main():
     dataEsecuzione(file_log)
 
     config = []
-    try:  # Try looking for config file parameters(output path, mac separator, sync), else use default settings
+    try:  # Try looking for config file parameters(output path), else use default settings
         file_yaml = open('config.yaml', 'r')
         dictionary = yaml.safe_load(file_yaml)
         for key, value in dictionary.items():
@@ -38,24 +34,25 @@ def main():
         
     except:
         print('Output file parameters not found, using default...\n')
-        config = ["..\\flussi\\osversion.csv", "..\\flussi\\netinfo.csv", "..\\flussi\\usb.csv", "..\\flussi\\eventviewer.csv", "..\\flussi\\product.csv", "..\\flussi\\uptime.csv", "..\\flussi\\updatepending.csv", "..\\flussi\\logicaldisk.csv", ";", "no", "sync_path", "192.168.1.202", "admin", "admin", "ciaotest"]
+        config = ["..\\flussi\\osversion.csv", "..\\flussi\\netinfo.csv", "..\\flussi\\product.csv", "..\\flussi\\uptime.csv", "..\\flussi\\logicaldisk.csv", "192.168.1.202", "admin", "admin", "ciaotest", ""]
         logMessage(file_log)
         file_log.write('Error: Missing output file parameters, used default."\n')
 
     #Output files
     output_osversion = open(config[0], 'w')
     output_netinfo = open(config[1], 'w')
-    output_usb = open(config[2], 'w')
-    output_eventviewer = open(config[3], 'w')
-    output_product = open(config[4], 'w')
-    output_uptime = open(config[5], 'w')
-    output_updatepending = open(config[6], 'w')
-    output_logicaldisk = open(config[7], 'w')
+    output_product = open(config[2], 'w')
+    output_uptime = open(config[3], 'w')
+    output_logicaldisk = open(config[4], 'w')
 
+    
     try:  # Main program for writing info in output files
         with open('..\\flussi\\computers.csv') as input:
 
             for line in input:
+                db_values = []
+                array_load_key = []
+                array_load_value = []
                 output_osversion.write(line.strip('\n'))
                 output_osversion.write(';')
                 output_netinfo.write(line.strip('\n'))
@@ -64,11 +61,11 @@ def main():
                 output_uptime.write(';')
 
                 pc = str(line).strip('"')[:-2]
+                db_values.append(pc)
 
                 if ping(pc) == False:  # Executes a ping to the endpoint to see if it's reachable
                     output_osversion.write('"Il seguente endpoint non è raggiungibile"\n')
                     output_netinfo.write('"Il seguente endpoint non è raggiungibile"\n')
-                    output_eventviewer.write(f'"{pc}";"Il seguente endpoint non è raggiungibile"\n')
                     output_product.write(f'"{pc}";"Il seguente endpoint non è raggiungibile"\n')
                     output_uptime.write('"Il seguente endpoint non è raggiungibile"\n')
                     output_logicaldisk.write(f'"{pc}";"Il seguente endpoint non è raggiungibile"\n')
@@ -80,7 +77,7 @@ def main():
 
                 # Series of function to write everything in files and trace
                 try:  # Try OS
-                    writeOS(pc, output_osversion)
+                    writeOS(pc, output_osversion, db_values)
                     logMessage(file_log)
                     file_log.write(pc)
                     file_log.write('";"WriteOS: OK";"')
@@ -90,24 +87,12 @@ def main():
                     file_log.write('";"WriteOS: Error";"')
 
                 try:  # Try NIC
-                    writeNIC(pc, output_netinfo, config[8], config)
+                    writeNIC(pc, output_netinfo, db_values, array_load_key, array_load_value)
                     file_log.write('MACVendor: OK";"')
                     file_log.write('WriteNIC: OK";"')
                 except:
                     file_log.write('MACVendor: Error";"')
                     file_log.write('WriteNIC: Error";"')
-
-                try:  # Try Event
-                    if config[9] == 'yes':
-                        try:
-                            writeEvent(pc, output_eventviewer)
-                            file_log.write('WriteEvent: OK";"')
-                        except:
-                            file_log.write('WriteEvent: Error";"')
-                    else:
-                        file_log.write('WriteEvent: NO";"')
-                except:
-                    file_log.write('WriteEvent: Error";"')
 
                 try:  # Try Product
                     writeProduct(pc, output_product)
@@ -116,39 +101,32 @@ def main():
                     file_log.write('WriteProduct: Error";"')
 
                 try:  # Try Uptime
-                    output_uptime.write(f'"Uptime: {str(get_uptime(pc))}";')
+                    output_uptime.write(f'"Uptime: {str(getUptime(pc))}";')
                     output_uptime.write(f'Ticks: "{str(round(time.time()))}"\n')
+                    db_values.append(getUptime(pc))
                     file_log.write('WriteUptime: OK";"')
                 except:
                     file_log.write('WriteUptime: Error";"')
 
                 try:  # Try LogicalDisk
                     writeDisk(pc, output_logicaldisk)
-                    file_log.write('WriteLogicalDisk: OK"\n')
+                    file_log.write('WriteLogicalDisk: OK";"')
                 except:
-                    file_log.write('WriteLogicalDisk: Error"\n')
+                    file_log.write('WriteLogicalDisk: Error";""')
+                
+                try:  # Try Database Upload
+                    databaseUpload(config[5], config[6], config[7], config[8], tuple(db_values))
+                    file_log.write('DatabaseUpload: OK";"')
+                except:
+                    file_log.write('DatabaseUpload: Error";"')
 
-        try:  # Try Updatepending
-            writeUpdate(output_updatepending)
-            logMessage(file_log)
-            file_log.write('WriteUpdate: OK";"')
-        except:
-            logMessage(file_log)
-            file_log.write('WriteUpdate: Error";"')
-
-        try:  # Try USB
-            writeUSB(output_usb)
-            file_log.write('WriteUSB: OK";"')
-        except:
-            file_log.write('WriteUSB: Error";"')
-
-        try:  # Try Sync
-            if config[10] != 'sync_path':
-                os.system('xcopy ..\\flussi ' + config[10] + ' /q /i /s /e /y /k')
-            else:
-                file_log.write('Sync: No"\n')
-        except:
-            file_log.write('Sync: Error"\n')
+                try:  # Try Harper Upload
+                    if config[9] != "":
+                        harperUpload(buildPayload(array_load_key, array_load_value))
+                        file_log.write('HarperUpload: OK"\n')
+                except:
+                    file_log.write('HarperUpload: Error"\n')
+                    
 
         # Functions to write log file
         logMessage(file_log)
@@ -168,78 +146,60 @@ def main():
     sys.exit(0)
 
 
-def writeNIC(pc, file_output, mac_sep, config):
+def writeNIC(pc, file_output, db_values, array_load_key, array_load_value):
     """ Writes information about Network Interface Card"""
     i = 1
-    val = []
-    array_load_key = []
-    array_load_value = []
     for scheda in wmi.WMI(pc).Win32_NetworkAdapterConfiguration(
             IPEnabled=True):  # Repeats the function for the number of NIC
         file_output.write(f'"Scheda numero: {str(i)}";')
 
         for j in range(len(scheda.IPAddress)):  # Writes both Ipv4 and Ipv6 address
             file_output.write(f'"IP: {scheda.IPAddress[j]}";')
-            array_load_key.append('IPV4')
-            array_load_key.append('IPV6')
-            array_load_value.append(scheda.IPAddress[j])
 
-        file_output.write(
-            '"MACAddress: ";"')  # Writes the MAC address in the various standards and then the seller of the NIC
+        file_output.write('"MACAddress: ";"')  # Writes the MAC address and then the seller of the NIC
         MAC = scheda.MACAddress
-        array_load_key.append('MACAddress')
-        array_load_value.append(MAC)
+        
         if '-' in str(MAC):
-            MACAddressSep(MAC, file_output, '-')
+            file_output.write(str(MAC).replace('-', ' '))
+            file_output.write('";"')
         elif ':' in str(MAC):
-            MACAddressSep(MAC, file_output, ':')
+            file_output.write(str(MAC).replace(':', ' '))
+            file_output.write('";"')
+        elif ';' in str(MAC):
+            file_output.write(str(MAC).replace(';', ' '))
+            file_output.write('";"')
         else:
-            MACAddressSep(MAC, file_output, ' ')
-        try:
-            MACAddressSep(MAC, file_output, mac_sep)
-        except:
-            print('Missing MAC Separator parameter...')
-        file_output.write(f'{MAC}";')
-        MACAddressVendor(MAC, file_output)  # Writes the NIC seller
+            file_output.write(str(MAC))
+            file_output.write('";"')
 
         file_output.write(f'"DHCP: {str(scheda.DHCPEnabled)}";')
-
-        val.append((MAC, scheda.DHCPEnabled))
+        
+        if i == 1:
+            db_values.append(MAC)
+            db_values.append(scheda.DHCPEnabled)
+            array_load_key.append('MACaddress')
+            array_load_value.append(MAC)
+            array_load_key.append('DHCP enabled')
+            array_load_value.append(scheda.DHCPEnabled)
 
         i += 1
-    databaseUpload(config[11], config[12], config[13], config[14], val)
     file_output.write(f'"Ticks: {str(round(time.time()))}"\n')
 
 
-def MACAddressSep(MAC, file_output, sep):
-    """ Writes the standardized MACAddress in the output file """
-    file_output.write(str(MAC).replace(sep, ':'))
-    file_output.write('";"')
-    file_output.write(str(MAC).replace(sep, ' '))
-    file_output.write('";"')
-    file_output.write(str(MAC).replace(sep, ';'))
-    file_output.write('";"')
-    file_output.write(str(MAC).replace(sep, ''))
-    file_output.write('";"')
-
-
-def writeOS(pc, file_output):
+def writeOS(pc, file_output, db_values):
     """ Writes information about the Operating System """
     for so in wmi.WMI(pc).Win32_OperatingSystem():
         file_output.write(f'"{so.Caption}";')
         file_output.write(f'"Version: {so.version}";')
         file_output.write(f'"Build: {so.BuildNumber}";')
         file_output.write(f'"Language: {so.OSLanguage}"')
+        db_values.append(so.Caption)
+        db_values.append(so.version)
+        array_load_key.append()
+        array_load_value.append()
+        array_load_key.append()
+        array_load_value.append()
     file_output.write('\n')
-
-
-def writeUSB(file_output):
-    """ Writes information about the USB port """
-    with open('usb_devices') as porte:
-        for linee in porte:
-            linee.strip(' ')
-            if 'Mass Storage' in linee:
-                file_output.write(linee)
 
 
 def ping(pc):
@@ -263,30 +223,6 @@ def logMessage(file_output):
     file_output.write(f' {str(round(time.time()))}";"')
 
 
-def MACAddressVendor(MAC, file_output):
-    """ Writes in the output file the seller of the Network Interface Card """
-    URL = "http://macvendors.co/api/"
-    richiesta = urllib2.Request(URL + MAC, headers={'User-Agent': "API Browser"})
-    risposta = urllib2.urlopen(richiesta)
-    codifica = codecs.getreader("utf-8")
-    obj = json.load(codifica(risposta))
-    file_output.write('"Vendor: ')
-    if 'error' in str(obj):  # If it doesn't find the vendor writes that there was an error
-        file_output.write('Error finding MACVendor')
-    else:
-        file_output.write(str(obj).strip('{}'))
-    file_output.write('";')
-
-
-def writeEvent(pc, file_output):
-    """ Gets info from event viewer """
-    for event in wmi.WMI(pc).Win32_NTLogEvent(Logfile='System'):
-        file_output.write(f'"{pc}";')
-        file_output.write(f'"{event.SourceName}";')
-        file_output.write(f'"{event.Logfile}";')
-        file_output.write(f'"{event.Type}"\n')
-
-
 def writeProduct(pc, file_output):
     """ Gets the information about the software installed on the computer """
     for products in wmi.WMI(pc).Win32_Product():
@@ -301,20 +237,11 @@ def writeProduct(pc, file_output):
             pass
 
 
-def get_uptime(computer):
+def getUptime(pc):
     """ Returns the uptime hours of the endpoint """
-    c = wmi.WMI(computer=computer, find_classes=False)
+    c = wmi.WMI(computer=pc, find_classes=False)
     secs_up = int([uptime.SystemUpTime for uptime in c.Win32_PerfFormattedData_PerfOS_System()][0])
     return secs_up / 3600
-
-
-def writeUpdate(file_output):
-    """ Writes in the output file the list of pending updates """
-    with open('updatepending.txt') as upt_pnd:
-        for lines in upt_pnd:
-            file_output.write('"localhost";"')
-            file_output.write(lines.strip('\n'))
-            file_output.write(f'";"{str(round(time.time()))}"\n')
 
 
 def writeDisk(pc, file_output):
@@ -329,7 +256,7 @@ def writeDisk(pc, file_output):
         file_output.write(f'"Serial: {disk.VolumeSerialnumber}";')
         file_output.write(f'"Ticks: {str(round(time.time()))}"\n')
 
-def databaseUpload(dbhost, dbusername, dbpassword, dbdatabase, val):
+def databaseUpload(dbhost, dbusername, dbpassword, dbdatabase, db_values):
     """ Uploads data on database """
     try:
         mydb = mysql.connector.connect(
@@ -341,15 +268,38 @@ def databaseUpload(dbhost, dbusername, dbpassword, dbdatabase, val):
 
         mycursor = mydb.cursor()
 
-        sql = "INSERT INTO network_card2 VALUES (%s, %s)"
+        sql = "INSERT INTO macchine VALUES (%s, %s, %s, %s, %s, %s)"
 
-        mycursor.executemany(sql, val)
+        mycursor.executemany(sql, db_values)
 
         mydb.commit()
 
         print(mycursor.rowcount, "was inserted.")
     except:
         print("Error inserting data into database.")
+
+
+def harperUpload(payload):
+    """ Uploads data on harper database """
+    url = 'https://cloud-1-itimarconivr.harperdbcloud.com'
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Basic Z2lhbm5pYmVsbGluaTpIYXJwZXJEQiQkNjM='
+    }
+    response = requests.request('POST', url, headers = headers, data = payload)
+    print(response.text.encode('utf8'))
+
+def buildPayload(loadKey, loadValue):
+    """ Builds the payload for the harper upload """
+    payload = '{\n\t\"operation\":\"sql\",\n\t\"sql\": \"INSERT INTO dev.agent ('
+    for key in loadKey:
+        payload += f'{key}, '
+    payload += f'Timestamp) VALUES('
+    for values in loadValue:
+        payload += f'{values}, '
+    payload += f'{str(round(time.time()))})\"\n'
+    payload += '}'
+    return payload
 
 
 if __name__ == '__main__':
