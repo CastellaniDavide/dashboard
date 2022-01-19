@@ -5,4 +5,5 @@ pyYAML
 win32com
 pywin32
 pypiwin32
+requests
 # slack_sdk
