@@ -4,6 +4,7 @@ __version__ = '01.01 2022-01-01'
 import datetime
 import mysql.connector
 import os
+import requests
 import sys
 import time
 import wmi
@@ -50,9 +51,6 @@ def main():
         with open('..\\flussi\\computers.csv') as input:
 
             for line in input:
-                db_values = []
-                array_load_key = []
-                array_load_value = []
                 output_osversion.write(line.strip('\n'))
                 output_osversion.write(';')
                 output_netinfo.write(line.strip('\n'))
@@ -61,7 +59,6 @@ def main():
                 output_uptime.write(';')
 
                 pc = str(line).strip('"')[:-2]
-                db_values.append(pc)
 
                 if ping(pc) == False:  # Executes a ping to the endpoint to see if it's reachable
                     output_osversion.write('"Il seguente endpoint non è raggiungibile"\n')
@@ -77,7 +74,7 @@ def main():
 
                 # Series of function to write everything in files and trace
                 try:  # Try OS
-                    writeOS(pc, output_osversion, db_values)
+                    writeOS(pc, output_osversion)
                     logMessage(file_log)
                     file_log.write(pc)
                     file_log.write('";"WriteOS: OK";"')
@@ -87,7 +84,7 @@ def main():
                     file_log.write('";"WriteOS: Error";"')
 
                 try:  # Try NIC
-                    writeNIC(pc, output_netinfo, db_values, array_load_key, array_load_value)
+                    writeNIC(pc, output_netinfo)
                     file_log.write('MACVendor: OK";"')
                     file_log.write('WriteNIC: OK";"')
                 except:
@@ -103,7 +100,6 @@ def main():
                 try:  # Try Uptime
                     output_uptime.write(f'"Uptime: {str(getUptime(pc))}";')
                     output_uptime.write(f'Ticks: "{str(round(time.time()))}"\n')
-                    db_values.append(getUptime(pc))
                     file_log.write('WriteUptime: OK";"')
                 except:
                     file_log.write('WriteUptime: Error";"')
@@ -115,14 +111,14 @@ def main():
                     file_log.write('WriteLogicalDisk: Error";""')
                 
                 try:  # Try Database Upload
-                    databaseUpload(config[5], config[6], config[7], config[8], tuple(db_values))
+                    #databaseUpload(config[5], config[6], config[7], config[8], tuple(db_values))
                     file_log.write('DatabaseUpload: OK";"')
                 except:
                     file_log.write('DatabaseUpload: Error";"')
 
                 try:  # Try Harper Upload
                     if config[9] != "":
-                        harperUpload(buildPayload(array_load_key, array_load_value))
+                        #harperUpload(buildPayload(array_load_key, array_load_value), config[9])
                         file_log.write('HarperUpload: OK"\n')
                 except:
                     file_log.write('HarperUpload: Error"\n')
@@ -146,7 +142,7 @@ def main():
     sys.exit(0)
 
 
-def writeNIC(pc, file_output, db_values, array_load_key, array_load_value):
+def writeNIC(pc, file_output):
     """ Writes information about Network Interface Card"""
     i = 1
     for scheda in wmi.WMI(pc).Win32_NetworkAdapterConfiguration(
@@ -175,30 +171,20 @@ def writeNIC(pc, file_output, db_values, array_load_key, array_load_value):
         file_output.write(f'"DHCP: {str(scheda.DHCPEnabled)}";')
         
         if i == 1:
-            db_values.append(MAC)
-            db_values.append(scheda.DHCPEnabled)
-            array_load_key.append('MACaddress')
-            array_load_value.append(MAC)
-            array_load_key.append('DHCP enabled')
-            array_load_value.append(scheda.DHCPEnabled)
+            db_values = []
 
         i += 1
     file_output.write(f'"Ticks: {str(round(time.time()))}"\n')
 
 
-def writeOS(pc, file_output, db_values):
+def writeOS(pc, file_output):
     """ Writes information about the Operating System """
     for so in wmi.WMI(pc).Win32_OperatingSystem():
         file_output.write(f'"{so.Caption}";')
         file_output.write(f'"Version: {so.version}";')
         file_output.write(f'"Build: {so.BuildNumber}";')
         file_output.write(f'"Language: {so.OSLanguage}"')
-        db_values.append(so.Caption)
-        db_values.append(so.version)
-        array_load_key.append()
-        array_load_value.append()
-        array_load_key.append()
-        array_load_value.append()
+        db_values = []
     file_output.write('\n')
 
 
@@ -276,12 +262,12 @@ def databaseUpload(dbhost, dbusername, dbpassword, dbdatabase, db_values):
     print(mycursor.rowcount, "was inserted.")
 
 
-def harperUpload(payload):
+def harperUpload(payload, token):
     """ Uploads data on harper database """
     url = 'https://cloud-1-itimarconivr.harperdbcloud.com'
     headers = {
         'Content-Type': 'application/json',
-        'Authorization': 'Basic Z2lhbm5pYmVsbGluaTpIYXJwZXJEQiQkNjM='
+        'Authorization': token
     }
     response = requests.request('POST', url, headers = headers, data = payload)
     print(response.text.encode('utf8'))
