@@ -258,25 +258,22 @@ def writeDisk(pc, file_output):
 
 def databaseUpload(dbhost, dbusername, dbpassword, dbdatabase, db_values):
     """ Uploads data on database """
-    try:
-        mydb = mysql.connector.connect(
-        host=dbhost,
-        user=dbusername,
-        password=dbpassword,
-        database=dbdatabase
-        )
+    mydb = mysql.connector.connect(
+    host=dbhost,
+    user=dbusername,
+    password=dbpassword,
+    database=dbdatabase
+    )
 
-        mycursor = mydb.cursor()
+    mycursor = mydb.cursor()
 
-        sql = "INSERT INTO macchine VALUES (%s, %s, %s, %s, %s, %s)"
+    sql = "INSERT INTO macchine VALUES (%s, %s, %s, %s, %s, %s)"
 
-        mycursor.executemany(sql, db_values)
+    mycursor.executemany(sql, db_values)
 
-        mydb.commit()
+    mydb.commit()
 
-        print(mycursor.rowcount, "was inserted.")
-    except:
-        print("Error inserting data into database.")
+    print(mycursor.rowcount, "was inserted.")
 
 
 def harperUpload(payload):
