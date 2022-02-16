@@ -5,6 +5,7 @@ import datetime
 import mysql.connector
 import os
 import requests
+import socket
 import sys
 import time
 import wmi
@@ -231,6 +232,7 @@ class Dashboard:
 
     def databaseUpload(self):
         """ Uploads data on database """
+        # TO DO
         mydb = mysql.connector.connect(
         host=self.config['db-host'],
         user=self.config['db-username'],
@@ -250,7 +252,7 @@ class Dashboard:
         
         
     def databaseGetNames(self):
-        """ gets the input names of the machines from the database """
+        """ Gets the input names of the machines from the database """
         mydb = mysql.connector.connect(
         host=self.config['db-host'],
         user=self.config['db-username'],
@@ -263,6 +265,39 @@ class Dashboard:
         mycursor.execute("SELECT machine_name FROM machine")
 
         return mycursor.fetchall()
+
+
+    def scanPorts(self):
+        """ Scans a machine for open ports """
+        # TO DO
+        a_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        location = ("127.0.0.1", 80)
+        result_of_check = a_socket.connect_ex(location)
+
+        if result_of_check == 0:
+            print("Port is open")
+        else:
+            print("Port is not open")
+
+        a_socket.close()
+
+
+    def checkHttp(self):
+        """ Requests an http page and checks status code """
+        # TO DO
+        x = requests.get('https://www.castellanidavide.it')
+        print(x.status_code)
+
+    
+    def checkDb(self):
+        """ Check if connection to database works """
+        mydb = mysql.connector.connect(
+        host=self.config['db-host'],
+        user=self.config['db-username'],
+        password=self.config['db-password'],
+        database=self.config['db-dbname']
+        )
 
 
 if __name__ == '__main__':
