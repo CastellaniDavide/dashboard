@@ -10,23 +10,21 @@ import sys
 import time
 import wmi
 import yaml
-
-# from slack_sdk import WebClient
-# from slack_sdk.errors import SlackApiError
-
+from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
 
 class Dashboard:
     def __init__(self):
         self.setup()
         self.run()
+        self.send_slack_message("Test")
 
-    
     def setup(self):
         try:  # Try opening log file, else create it
-            self.file_log = open('..\\log\\log.log', 'a')
+            self.file_log = open('..\\log\\trace.log', 'a')
         except:
             print('Log file not found, creating new one...\n')
-            self.file_log = open('..\\log\\log.log', 'a+')
+            self.file_log = open('..\\log\\trace.log', 'a+')
             self.logMessage()
             self.file_log.write('Error: Missing log file, created new."\n')
 
@@ -53,6 +51,8 @@ class Dashboard:
         self.output_uptime = open(self.config['output-uptime'], 'w')
         self.output_logicaldisk = open(self.config['output-logicaldisk'], 'w')
 
+        # Slack initialization
+        self.client = WebClient(token=self.config["slack"]["token"])
 
     def run(self):
         """ Reads the list of endpoints and writes information on output files """
@@ -113,7 +113,17 @@ class Dashboard:
                     self.writeDisk(pc)
                     self.file_log.write('WriteLogicalDisk: OK";"')
                 except:
-                    self.file_log.write('WriteLogicalDisk: Error";""')           
+                    self.file_log.write('WriteLogicalDisk: Error";""')
+                    
+                databaseResult = self.testDatabase(pc)
+                htmlResult = self.testHtml(pc)
+                portsResult = self.checkPorts(pc)
+                
+                if databaseResult == 'Connessione database fallita':
+                    self.send_slack_message('Errore durante la connessione al database')
+                if htmlResult == 'Connessione html fallita':
+                    self.send_slack_message('Errore durante la connessione alla pagina html')
+                    
 
             # Functions to write log file
             self.logMessage()
@@ -232,7 +242,6 @@ class Dashboard:
 
     def databaseUpload(self):
         """ Uploads data on database """
-        # TO DO
         mydb = mysql.connector.connect(
         host=self.config['db-host'],
         user=self.config['db-username'],
@@ -252,7 +261,7 @@ class Dashboard:
         
         
     def databaseGetNames(self):
-        """ Gets the input names of the machines from the database """
+        """ gets the input names of the machines from the database """
         mydb = mysql.connector.connect(
         host=self.config['db-host'],
         user=self.config['db-username'],
@@ -267,37 +276,50 @@ class Dashboard:
         return mycursor.fetchall()
 
 
-    def scanPorts(self):
-        """ Scans a machine for open ports """
-        # TO DO
-        a_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    def testDatabase(self, pc):
+        """ Tests connection to a database """
+        try:
+            mydb = mysql.connector.connect(
+            host=pc,
+            )
+            return 'Connessione database eseguita'
+        except mysql.connector.Error as error:
+            return 'Connessione database fallita'
 
-        location = ("127.0.0.1", 80)
-        result_of_check = a_socket.connect_ex(location)
 
-        if result_of_check == 0:
-            print("Port is open")
+    def testHtml(self, pc):
+        """ Tests if a machine has a website """
+        response = requests.get(f'http://{pc}')
+        if response.status_code == 200:
+            return 'Connessione html eseguita'
         else:
-            print("Port is not open")
+            return 'Connessione html fallita'
+        
+        
+    def checkPorts(self, pc):
+        """ Check which ports are open """
+        ports = [80, 443, 3306]
+        opened = []
+        for port in ports:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            result = sock.connect_ex((pc, port))
+            if result == 0:
+                opened.append(True)
+            else:
+                opened.append(False)
+            sock.close()
+        return opened
 
-        a_socket.close()
 
-
-    def checkHttp(self):
-        """ Requests an http page and checks status code """
-        # TO DO
-        x = requests.get('https://www.castellanidavide.it')
-        print(x.status_code)
-
-    
-    def checkDb(self):
-        """ Check if connection to database works """
-        mydb = mysql.connector.connect(
-        host=self.config['db-host'],
-        user=self.config['db-username'],
-        password=self.config['db-password'],
-        database=self.config['db-dbname']
-        )
+    def send_slack_message(self, message = "Hello world!"):
+        try:
+            response = self.client.chat_postMessage(channel=self.config["slack"]["channel"], text=message)
+            assert response["message"]["text"] == message
+        except SlackApiError as e:
+            # You will get a SlackApiError if "ok" is False
+            assert e.response["ok"] is False
+            assert e.response["error"]  # str like 'invalid_auth', 'channel_not_found'
+            print(f"Got an error: {e.response['error']}")
 
 
 if __name__ == '__main__':
