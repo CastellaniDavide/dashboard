@@ -121,8 +121,17 @@ class Dashboard:
                 
                 if databaseResult == 'Connessione database fallita':
                     self.send_slack_message('Errore durante la connessione al database')
+                    self.databaseUpload('Log_output', (1, 0))
+                else:
+                    self.send_slack_message('Connessione al database eseguita con successo')
+                    self.databaseUpload('Log_output', (1, 1))
+
                 if htmlResult == 'Connessione html fallita':
                     self.send_slack_message('Errore durante la connessione alla pagina html')
+                    self.databaseUpload('Log_output', (2, 0))
+                else:
+                    self.send_slack_message('Connessione alla pagina html eseguita con successo')
+                    self.databaseUpload('Log_output', (2, 1))
                     
 
             # Functions to write log file
@@ -240,7 +249,7 @@ class Dashboard:
         self.file_log.write(f' {str(round(time.time()))}";"')
 
 
-    def databaseUpload(self):
+    def databaseUpload(self, table, values):
         """ Uploads data on database """
         mydb = mysql.connector.connect(
         host=self.config['db-host'],
@@ -251,13 +260,11 @@ class Dashboard:
 
         mycursor = mydb.cursor()
 
-        sql = "INSERT INTO macchine VALUES (%s, %s, %s, %s, %s, %s)"
+        sql = f"INSERT INTO {table} VALUES (%s, %s)"
 
-        mycursor.executemany(sql, tuple(self.db_values))
+        mycursor.execute(sql, values)
 
         mydb.commit()
-
-        print(mycursor.rowcount, "was inserted.")
         
         
     def databaseGetNames(self):

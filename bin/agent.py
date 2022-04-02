@@ -125,7 +125,7 @@ class Dashboard:
             self.file_log.write('Error: Something went wrong"\n')
 
             # Functions to write log file
-            self.logMessage()
+            self.logMessage()  
             self.file_log.write('Termine Esecuzione: ')
             self.dataEsecuzione()
             sys.exit(1)
